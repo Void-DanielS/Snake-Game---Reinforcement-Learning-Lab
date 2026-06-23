@@ -1,0 +1,39 @@
+# ── Claude Code (local AI assistant data) ────────────────────────────────────
+.claude/
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── Python bytecode ───────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ── Distribution / packaging ──────────────────────────────────────────────────
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ── Saved Q-matrix files (user data — generated at runtime) ──────────────────
+*.pkl
+
+# ── IDE / editor ──────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# ── OS artefacts ─────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
