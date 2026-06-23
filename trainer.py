@@ -64,12 +64,13 @@ class TrainingSession:
 class EvalSession:
     """Runs trained agents in greedy mode (no exploration, no Q-table updates)."""
 
-    def __init__(self, agents, num_obstacles=0):
+    def __init__(self, agents, num_obstacles=0, obstacle_positions=None):
         self.agents = agents
         for a in self.agents:
             a.epsilon = 0.0
 
-        self.envs      = [SnakeEnv(num_obstacles=num_obstacles) for _ in range(3)]
+        self.envs      = [SnakeEnv(num_obstacles=num_obstacles,
+                                    obstacle_positions=obstacle_positions) for _ in range(3)]
         self.states    = [e.reset() for e in self.envs]
         self.scores    = [0] * 3
         self.eval_ep   = [0] * 3

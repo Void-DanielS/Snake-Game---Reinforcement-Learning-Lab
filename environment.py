@@ -18,11 +18,14 @@ DIRECTIONS = {
 
 
 class SnakeEnv:
-    def __init__(self, grid_size=GRID_SIZE, num_obstacles=0):
+    def __init__(self, grid_size=GRID_SIZE, num_obstacles=0, obstacle_positions=None):
         self.grid_size = grid_size
         self.num_obstacles = num_obstacles
-        self.obstacles = set()
-        self._generate_obstacles()
+        if obstacle_positions:
+            self.obstacles = set(obstacle_positions)
+        else:
+            self.obstacles = set()
+            self._generate_obstacles()
         self.reset()
 
     def _generate_obstacles(self):

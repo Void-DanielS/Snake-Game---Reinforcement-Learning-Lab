@@ -182,6 +182,108 @@ def _file_dialog(save: bool = False) -> str:
     return path or ""
 
 
+# ─── Obstacle editor — click cells to place obstacles before training ────────
+class ObstacleEditorScreen:
+    def __init__(self, screen: pygame.Surface, grid_size: int, initial=None):
+        self.screen     = screen
+        self.grid_size  = grid_size
+        self.obstacles  = set(initial) if initial else set()
+        mid = grid_size // 2
+        self.forbidden  = {(mid, mid), (mid, mid - 1), (mid, mid - 2)}
+        self.done_btn   = pygame.Rect(0, 0, 0, 0)
+        self.clear_btn  = pygame.Rect(0, 0, 0, 0)
+
+    def _geometry(self):
+        W, H = self.screen.get_size()
+        avail = min(W - 360, H - 220)
+        cell  = max(20, avail // self.grid_size)
+        gp    = cell * self.grid_size
+        ox    = W // 2 - gp // 2
+        oy    = 130
+        return ox, oy, cell, gp
+
+    def _cell_at(self, pos):
+        ox, oy, cell, gp = self._geometry()
+        x, y = pos
+        if ox <= x < ox + gp and oy <= y < oy + gp:
+            return (int((x - ox) // cell), int((y - oy) // cell))
+        return None
+
+    def _draw(self):
+        screen = self.screen
+        W, H   = screen.get_size()
+        screen.fill(BG)
+
+        blit(screen, "OBSTACLE  EDITOR", max(22, H // 22), TRAIN_ACC,
+             center=(W // 2, 48), bold=True)
+        blit(screen, "LEFT CLICK  add / remove obstacle    GREY CELLS  reserved for the snake",
+             max(11, H // 62), DIM, center=(W // 2, 84))
+
+        ox, oy, cell, gp = self._geometry()
+        pygame.draw.rect(screen, PANEL_BG, (ox, oy, gp, gp))
+        pygame.draw.rect(screen, TRAIN_ACC, (ox, oy, gp, gp), 2, border_radius=4)
+        for i in range(self.grid_size + 1):
+            pygame.draw.line(screen, GRIDLINE, (ox + i * cell, oy), (ox + i * cell, oy + gp))
+            pygame.draw.line(screen, GRIDLINE, (ox, oy + i * cell), (ox + gp, oy + i * cell))
+
+        for fx, fy in self.forbidden:
+            fbx, fby = ox + fx * cell + 2, oy + fy * cell + 2
+            w = cell - 4
+            pygame.draw.rect(screen, (45, 45, 65), (fbx, fby, w, w), border_radius=3)
+
+        for gx, gy in self.obstacles:
+            bx, by = ox + gx * cell + 2, oy + gy * cell + 2
+            w = cell - 4
+            pygame.draw.rect(screen, OBST_C, (bx, by, w, w), border_radius=max(2, w // 6))
+            pygame.draw.rect(screen, OBST_OUT, (bx, by, w, w), 2, border_radius=max(2, w // 6))
+
+        blit(screen, f"Obstacles placed: {len(self.obstacles)}", max(14, H // 50), TEXT_C,
+             center=(W // 2, oy + gp + 28))
+
+        btn_w, btn_h, gap = 200, 44, 14
+        self.clear_btn = pygame.Rect(W // 2 - btn_w - gap // 2, oy + gp + 48, btn_w, btn_h)
+        self.done_btn  = pygame.Rect(W // 2 + gap // 2,         oy + gp + 48, btn_w, btn_h)
+        mouse = pygame.mouse.get_pos()
+
+        pygame.draw.rect(screen, BTN3_HOV if self.clear_btn.collidepoint(mouse) else BTN3_BG,
+                          self.clear_btn, border_radius=7)
+        pygame.draw.rect(screen, BTN3_TXT, self.clear_btn, 2, border_radius=7)
+        blit(screen, "CLEAR ALL", max(12, H // 55), BTN3_TXT, center=self.clear_btn.center, bold=True)
+
+        pygame.draw.rect(screen, BTN_HOV if self.done_btn.collidepoint(mouse) else BTN_BG,
+                          self.done_btn, border_radius=7)
+        pygame.draw.rect(screen, INP_BDR, self.done_btn, 2, border_radius=7)
+        blit(screen, "✓  DONE", max(12, H // 55), BTN_TXT, center=self.done_btn.center, bold=True)
+
+        pygame.display.flip()
+
+    def run(self):
+        clock = pygame.time.Clock()
+        while True:
+            self._draw()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit(); sys.exit()
+                elif event.type == pygame.VIDEORESIZE:
+                    self.screen = pygame.display.get_surface()
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    if self.done_btn.collidepoint(event.pos):
+                        return list(self.obstacles)
+                    if self.clear_btn.collidepoint(event.pos):
+                        self.obstacles.clear()
+                        continue
+                    cell = self._cell_at(event.pos)
+                    if cell and cell not in self.forbidden:
+                        if cell in self.obstacles:
+                            self.obstacles.discard(cell)
+                        else:
+                            self.obstacles.add(cell)
+                elif event.type == pygame.KEYDOWN:
+                    if event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
+                        return list(self.obstacles)
+            clock.tick(60)
+
+
 # ─── Config screen ────────────────────────────────────────────────────────────
 class ConfigScreen:
     LEFT_FIELDS = [
@@ -212,6 +314,7 @@ class ConfigScreen:
         self.active = None
         self.error  = ""
         self.msg    = ""   # transient status message (e.g. load success)
+        self.obstacle_positions: list[tuple[int, int]] = []
 
     # ── drawing ───────────────────────────────────────────────────────────────
     def draw(self):
@@ -281,10 +384,11 @@ class ConfigScreen:
         btn_h  = max(44, H // 17)
         gap_b  = 14
         btn_w  = 200
-        total  = btn_w * 3 + gap_b * 2
+        total  = btn_w * 4 + gap_b * 3
         btn1   = pygame.Rect(cx - total // 2,                       bottom_y + 8, btn_w, btn_h)
         btn2   = pygame.Rect(cx - total // 2 + btn_w + gap_b,       bottom_y + 8, btn_w, btn_h)
         btn3   = pygame.Rect(cx - total // 2 + (btn_w + gap_b) * 2, bottom_y + 8, btn_w, btn_h)
+        btn4   = pygame.Rect(cx - total // 2 + (btn_w + gap_b) * 3, bottom_y + 8, btn_w, btn_h)
         mouse  = pygame.mouse.get_pos()
 
         pygame.draw.rect(screen, BTN_HOV if btn1.collidepoint(mouse) else BTN_BG,
@@ -305,8 +409,14 @@ class ConfigScreen:
         blit(screen, "⟳  TRANSFER LEARN", max(12, H // 54), BTN3_TXT,
              center=btn3.center, bold=True)
 
+        pygame.draw.rect(screen, BTN3_HOV if btn4.collidepoint(mouse) else BTN3_BG,
+                         btn4, border_radius=7)
+        pygame.draw.rect(screen, OBST_OUT, btn4, 2, border_radius=7)
+        blit(screen, f"⊞  OBSTACLES ({len(self.obstacle_positions)})", max(12, H // 54), OBST_OUT,
+             center=btn4.center, bold=True)
+
         pygame.display.flip()
-        return btn1, btn2, btn3, field_rects
+        return btn1, btn2, btn3, btn4, field_rects
 
     def _draw_field(self, screen, rect, key, val_fs):
         active = self.active == key
@@ -325,6 +435,7 @@ class ConfigScreen:
             for _, k, _ in self.ALL_FIELDS:
                 cfg[k] = int(float(self.values[k])) if k in self.INT_KEYS \
                          else float(self.values[k])
+            cfg["obstacle_positions"] = list(self.obstacle_positions) or None
             return cfg
         except ValueError:
             self.error = "Invalid value — numbers only"
@@ -336,7 +447,7 @@ class ConfigScreen:
         clock    = pygame.time.Clock()
         all_keys = [k for _, k, _ in self.ALL_FIELDS]
         while True:
-            btn1, btn2, btn3, field_rects = self.draw()
+            btn1, btn2, btn3, btn4, field_rects = self.draw()
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit(); sys.exit()
@@ -357,6 +468,8 @@ class ConfigScreen:
                         self._do_load()
                     if btn3.collidepoint(event.pos):
                         self._do_transfer_load()
+                    if btn4.collidepoint(event.pos):
+                        self._do_edit_obstacles()
                 elif event.type == pygame.KEYDOWN:
                     if self.active:
                         if event.key == pygame.K_BACKSPACE:
@@ -371,6 +484,12 @@ class ConfigScreen:
                         if cfg:
                             return "train", cfg
             clock.tick(60)
+
+    def _do_edit_obstacles(self):
+        editor = ObstacleEditorScreen(self.screen, GRID_SIZE, self.obstacle_positions)
+        self.obstacle_positions = editor.run()
+        self.screen = pygame.display.get_surface()
+        self.values["num_obstacles"] = str(len(self.obstacle_positions))
 
     def _do_load(self):
         path = _file_dialog(save=False)
@@ -846,12 +965,14 @@ def main():
             screen = pygame.display.get_surface()
             cfg    = sig.cfg
             n_obs  = cfg.get("num_obstacles", 0)
-            envs   = [SnakeEnv(num_obstacles=n_obs) for _ in range(3)]
+            obs_pos = cfg.get("obstacle_positions")
+            envs   = [SnakeEnv(num_obstacles=n_obs, obstacle_positions=obs_pos) for _ in range(3)]
             session = TrainingSession(sig.agents, envs, cfg)
             trained = TrainingScreen(screen, session).run()
             screen  = pygame.display.get_surface()
             if trained is not None:
-                EvalScreen(screen, EvalSession(trained, num_obstacles=n_obs)).run()
+                EvalScreen(screen, EvalSession(trained, num_obstacles=n_obs,
+                                                obstacle_positions=obs_pos)).run()
                 screen = pygame.display.get_surface()
             continue
 
@@ -863,17 +984,19 @@ def main():
             continue
 
         # mode == "train"
-        cfg    = payload
-        n_obs  = cfg.get("num_obstacles", 0)
-        agents = create_agents(cfg)
-        envs   = [SnakeEnv(num_obstacles=n_obs) for _ in range(3)]
+        cfg     = payload
+        n_obs   = cfg.get("num_obstacles", 0)
+        obs_pos = cfg.get("obstacle_positions")
+        agents  = create_agents(cfg)
+        envs    = [SnakeEnv(num_obstacles=n_obs, obstacle_positions=obs_pos) for _ in range(3)]
 
         session = TrainingSession(agents, envs, cfg)
         trained = TrainingScreen(screen, session).run()
         screen  = pygame.display.get_surface()
 
         if trained is not None:
-            EvalScreen(screen, EvalSession(trained, num_obstacles=n_obs)).run()
+            EvalScreen(screen, EvalSession(trained, num_obstacles=n_obs,
+                                            obstacle_positions=obs_pos)).run()
             screen = pygame.display.get_surface()
 
 
