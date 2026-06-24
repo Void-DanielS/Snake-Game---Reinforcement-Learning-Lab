@@ -17,32 +17,40 @@ DIRECTIONS = {
 }
 
 
+def generate_obstacle_positions(grid_size, num_obstacles):
+    """Generate a random list of obstacle coordinates, avoiding the snake's spawn area.
+
+    Call this once and share the result across multiple SnakeEnv instances so
+    that agents being compared face the exact same obstacle layout.
+    """
+    mid = grid_size // 2
+    forbidden = {(mid, mid), (mid, mid - 1), (mid, mid - 2)}
+    obstacles = set()
+    attempts = 0
+    while len(obstacles) < num_obstacles:
+        pos = (
+            np.random.randint(0, grid_size),
+            np.random.randint(0, grid_size),
+        )
+        if pos not in forbidden:
+            obstacles.add(pos)
+        attempts += 1
+        if attempts > num_obstacles * 200:
+            break
+    return list(obstacles)
+
+
 class SnakeEnv:
     def __init__(self, grid_size=GRID_SIZE, num_obstacles=0, obstacle_positions=None):
         self.grid_size = grid_size
         self.num_obstacles = num_obstacles
         if obstacle_positions:
             self.obstacles = set(obstacle_positions)
+        elif num_obstacles:
+            self.obstacles = set(generate_obstacle_positions(grid_size, num_obstacles))
         else:
             self.obstacles = set()
-            self._generate_obstacles()
         self.reset()
-
-    def _generate_obstacles(self):
-        mid = self.grid_size // 2
-        forbidden = {(mid, mid), (mid, mid - 1), (mid, mid - 2)}
-        self.obstacles = set()
-        attempts = 0
-        while len(self.obstacles) < self.num_obstacles:
-            pos = (
-                np.random.randint(0, self.grid_size),
-                np.random.randint(0, self.grid_size),
-            )
-            if pos not in forbidden:
-                self.obstacles.add(pos)
-            attempts += 1
-            if attempts > self.num_obstacles * 200:
-                break
 
     def reset(self):
         mid = self.grid_size // 2

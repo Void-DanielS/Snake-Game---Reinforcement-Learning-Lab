@@ -2,10 +2,11 @@ import pygame
 import sys
 import math
 import numpy as np
-from environment import SnakeEnv, GRID_SIZE
+from environment import SnakeEnv, GRID_SIZE, generate_obstacle_positions
 from trainer import (
     TrainingSession, EvalSession,
-    create_agents, save_q_matrices, load_q_matrices, load_q_matrices_for_transfer,
+    create_agents, save_q_matrices, save_score_history,
+    load_q_matrices, load_q_matrices_for_transfer,
 )
 
 # ─── Palette ─────────────────────────────────────────────────────────────────
@@ -753,7 +754,9 @@ class TrainingScreen:
             return
         try:
             save_q_matrices(self.session.agents, path)
-            self._save_msg = f"Saved  →  {path}"
+            history_path = path.rsplit(".", 1)[0] + "_history.csv"
+            save_score_history(self.session.score_history, history_path)
+            self._save_msg = f"Saved  →  {path}  (+ history CSV)"
         except Exception as exc:
             self._save_msg = f"Save failed: {exc}"
 
@@ -966,6 +969,8 @@ def main():
             cfg    = sig.cfg
             n_obs  = cfg.get("num_obstacles", 0)
             obs_pos = cfg.get("obstacle_positions")
+            if not obs_pos and n_obs:
+                obs_pos = generate_obstacle_positions(GRID_SIZE, n_obs)
             envs   = [SnakeEnv(num_obstacles=n_obs, obstacle_positions=obs_pos) for _ in range(3)]
             session = TrainingSession(sig.agents, envs, cfg)
             trained = TrainingScreen(screen, session).run()
@@ -987,6 +992,8 @@ def main():
         cfg     = payload
         n_obs   = cfg.get("num_obstacles", 0)
         obs_pos = cfg.get("obstacle_positions")
+        if not obs_pos and n_obs:
+            obs_pos = generate_obstacle_positions(GRID_SIZE, n_obs)
         agents  = create_agents(cfg)
         envs    = [SnakeEnv(num_obstacles=n_obs, obstacle_positions=obs_pos) for _ in range(3)]
 

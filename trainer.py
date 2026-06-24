@@ -1,5 +1,6 @@
 import numpy as np
 import pickle
+import csv
 from collections import defaultdict
 from environment import SnakeEnv
 from agents import QLearningAgent, SarsaAgent, DynaQAgent
@@ -22,6 +23,7 @@ class TrainingSession:
         self.episodes = [0] * 3
         self.ep_steps = [0] * 3
         self.actions  = [a.choose_action(s) for a, s in zip(agents, self.states)]
+        self.score_history = [[] for _ in range(3)]  # score per finished episode, per agent
 
     @property
     def training_done(self) -> bool:
@@ -53,6 +55,7 @@ class TrainingSession:
             if done:
                 if self.envs[i].score > self.records[i]:
                     self.records[i] = self.envs[i].score
+                self.score_history[i].append(self.envs[i].score)
                 self.episodes[i] += 1
                 self.ep_steps[i]  = 0
                 self.agents[i].decay_epsilon()
@@ -121,6 +124,20 @@ def save_q_matrices(agents, filepath: str):
     }
     with open(filepath, "wb") as f:
         pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def save_score_history(score_history, filepath: str):
+    """Write per-episode scores for all three agents to a CSV for plotting learning curves.
+
+    Long format (agent, episode, score) since the agents can finish different
+    numbers of episodes by the time training stops.
+    """
+    with open(filepath, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["agent", "episode", "score"])
+        for name, scores in zip(AGENT_NAMES, score_history):
+            for episode, score in enumerate(scores, start=1):
+                writer.writerow([name, episode, score])
 
 
 def load_q_matrices(filepath: str):
