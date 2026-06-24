@@ -204,7 +204,7 @@ Each game state is an 8-element tuple:
 - `direction` — current heading (0 UP · 1 DOWN · 2 LEFT · 3 RIGHT).
 - `food_*` — 1 if food is in that absolute direction from the head.
 
-This yields at most **1 024 unique states**, making tabular Q-learning practical without function approximation.
+This yields at most **512 unique states**, making tabular Q-learning practical without function approximation.
 
 | Event | Reward |
 |-------|--------|
